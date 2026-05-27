@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Người dùng</title>
+
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+        }
+        h1 {
+            margin-bottom: 15px;
+        }
+        .search-bar {
+            margin-bottom: 10px;
+        }
+        .search-bar input {
+            width: 100%;
+            padding: 10px;
+            font-size: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background: #4CAF50;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        button {
+            padding: 7px 14px;
+            margin: 2px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: white;
+        }
+        .btn-add {
+            background: #4CAF50;
+            margin-bottom: 10px;
+        }
+        .btn-edit {
+            background: #2196F3;
+        }
+        .btn-delete {
+            background: #f44336;
+        }
+        .btn-save {
+            background: #4CAF50;
+        }
+        .btn-cancel {
+            background: #9e9e9e;
+        }
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            width: 400px;
+        }
+        .modal-content h3 {
+            margin-bottom: 15px;
+        }
+        .modal-content label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        .modal-content input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-top: 4px;
+        }
+        .modal-actions {
+            margin-top: 15px;
+            text-align: right;
+        }
+        .error {
+            color: red;
+            font-size: 13px;
+            margin-top: 3px;
+        }
+
+        @media (max-width: 768px) {
+            table {
+                display: block;
+                overflow-x: auto;
+                font-size: 12px;
+            }
+            td, th {
+                padding: 8px 4px;
+            }
+            .modal-content {
+                width: 90%;
+                padding: 15px;
+            }
+            button {
+                min-width: 44px;
+                min-height: 44px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        //Component SearchBar
+        function SearchBar({ value, onChange }) {
+            const [input, setInput] = React.useState(value);
+
+            // Debounce 500ms: chỉ gọi API sau khi người dùng ngừng gõ
+            React.useEffect(() => {
+                const timer = setTimeout(() => onChange(input), 500);
+                return () => clearTimeout(timer);
+            }, [input]);
+
+            return (
+                <div className="search-bar">
+                    <input
+                        type="text"
+                        placeholder="Tìm theo tên, email, địa chỉ..."
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                    />
+                </div>
+            );
+        }
+
+        //Component UserTable
+        function UserTable({ users, page, limit, onEdit, onDelete }) {
+            return (
+                <table>
+                    <thead>
+                        <tr>
+                            <th>STT</th><th>Họ tên</th><th>Tuổi</th>
+                            <th>Email</th><th>Địa chỉ</th><th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {users.length === 0 ? (
+                            <tr><td colSpan="6" style={{textAlign: "center"}}>Không có dữ liệu</td></tr>
+                        ) : (
+                            users.map((user, index) => (
+                                <tr key={user._id}>
+                                    {/* STT tăng liên tục theo page */}
+                                    <td>{(page - 1) * limit + index + 1}</td>
+                                    <td>{user.name}</td>
+                                    <td>{user.age}</td>
+                                    <td>{user.email}</td>
+                                    <td>{user.address || "-"}</td>
+                                    <td>
+                                        <button className="btn-edit" onClick={() => onEdit(user)}>Sửa</button>
+                                        <button className="btn-delete" onClick={() => {
+                                            if (window.confirm(`Xóa "${user.name}"?`)) onDelete(user._id);
+                                        }}>Xóa</button>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            );
+        }
+
+        //Component Pagination Control
+        function Pagination({ page, totalPages, limit, onPageChange, onLimitChange }) {
+            return (
+                <div className="pagination">
+                    <div>
+                        Hiển thị:
+                        <select value={limit} onChange={(e) => {
+                            onLimitChange(Number(e.target.value));
+                            onPageChange(1);
+                        }}>
+                            <option value="3">3</option>
+                            <option value="5">5</option>
+                            <option value="10">10</option>
+                        </select>
+                        dòng/trang
+                    </div>
+                    <div>
+                        <button onClick={() => onPageChange(page - 1)} disabled={page === 1}>Prev</button>
+                        <span style={{margin: "0 10px"}}>Trang {page}/{totalPages || 1}</span>
+                        <button onClick={() => onPageChange(page + 1)} disabled={page >= totalPages}>Next</button>
+                    </div>
+                </div>
+            );
+        }
+
+        //Component UserModal
+        function UserModal({ user, onClose, onSave }) {
+            const [formData, setFormData] = React.useState(
+                user ? {...user} : { name: "", age: "", email: "", address: "" }
+            );
+            const [errors, setErrors] = React.useState({});
+
+            const validate = () => {
+                const e = {};
+                if (!formData.name || formData.name.trim().length < 2) e.name = "Tên phải có ít nhất 2 ký tự";
+                if (formData.age === "" || Number(formData.age) < 0) e.age = "Tuổi phải >= 0";
+                if (!formData.email || !formData.email.includes("@") || !formData.email.includes("."))
+                    e.email = "Email không hợp lệ";
+                setErrors(e);
+                return Object.keys(e).length === 0;
+            };
+
+            const handleSubmit = () => {
+                if (!validate()) return;
+
+                const body = {
+                    name: formData.name.trim(),
+                    age: Math.floor(Number(formData.age)),
+                    email: formData.email.trim().toLowerCase(),
+                    address: formData.address?.trim() || ""
+                };
+
+                const url = user
+                    ? `https://user-management-congngheweb.onrender.com/api/users/${user._id}`
+                    : `https://user-management-congngheweb.onrender.com/api/users`;
+
+                fetch(url, {
+                    method: user ? "PUT" : "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body)
+                })
+                    .then(res => {
+                        if (res.status === 404) throw new Error("Không tìm thấy người dùng (404)");
+                        if (res.status === 500) throw new Error("Lỗi server nội bộ (500)");
+                        if (!res.ok) throw new Error(`Email đã được sử dụng(Mã lỗi:`+ `${res.status}` + `)`);
+                        return res.json();
+                    })
+                    .then(data => {
+                        // BE trả về { error: "Email đã tồn tại" } → hiện đúng message
+                        if (data.error) { alert("Lỗi: " + data.error); return; }
+                        alert(data.message);
+                        onSave();
+                    })
+                    .catch(err => {
+                        if (err.message === "Failed to fetch") {
+                            alert("Không kết nối được với server!");
+                        }
+                    });
+            };
+
+            return (
+                <div className="modal-overlay" onClick={onClose}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <h3>{user ? "Sửa người dùng" : "Thêm người dùng"}</h3>
+
+                        <label>Họ tên *</label>
+                        <input name="name" value={formData.name}
+                            onChange={(e) => setFormData({...formData, name: e.target.value})} />
+                        {errors.name && <p className="error">{errors.name}</p>}
+
+                        <label>Tuổi *</label>
+                        <input name="age" type="number" value={formData.age}
+                            onChange={(e) => setFormData({...formData, age: e.target.value})} />
+                        {errors.age && <p className="error">{errors.age}</p>}
+
+                        <label>Email *</label>
+                        <input name="email" value={formData.email}
+                            onChange={(e) => setFormData({...formData, email: e.target.value})} />
+                        {errors.email && <p className="error">{errors.email}</p>}
+
+                        <label>Địa chỉ</label>
+                        <input name="address" value={formData.address}
+                            onChange={(e) => setFormData({...formData, address: e.target.value})} />
+
+                        <div className="modal-actions">
+                            <button className="btn-save" onClick={handleSubmit}>Lưu</button>
+                            <button className="btn-cancel" onClick={onClose}>Hủy</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        //Component App
+        function App() {
+            const [users, setUsers] = React.useState([]);
+            const [page, setPage] = React.useState(1);
+            const [limit, setLimit] = React.useState(5);
+            const [search, setSearch] = React.useState("");
+            const [total, setTotal] = React.useState(0);
+            const [totalPages, setTotalPages] = React.useState(0);
+            const [showModal, setShowModal] = React.useState(false);
+            const [editingUser, setEditingUser] = React.useState(null);
+
+            const fetchUsers = () => {
+                fetch(`https://user-management-congngheweb.onrender.com/api/users?page=${page}&limit=${limit}&search=${search}`)
+                    .then(res => {
+                        if (res.status === 500) throw new Error("Lỗi server nội bộ (500)");
+                        if (!res.ok) throw new Error(`Lỗi không xác định: ${res.status}`);
+                        return res.json();
+                    })
+                    .then(data => {
+                        setUsers(data.data);
+                        setTotal(data.total);
+                        setTotalPages(data.totalPages);
+                    })
+                    .catch(err => {
+                        if (err.message === "Failed to fetch") {
+                            alert("Không kết nối được với server!");
+                        }
+                    });
+            };
+
+            React.useEffect(() => { fetchUsers(); }, [page, limit, search]);
+
+            const deleteUser = (id) => {
+                fetch(`https://user-management-congngheweb.onrender.com/api/users/${id}`, { method: "DELETE" })
+                    .then(res => {
+                        if (res.status === 404) throw new Error("Không tìm thấy người dùng (404)");
+                        if (res.status === 500) throw new Error("Lỗi server nội bộ (500)");
+                        if (!res.ok) throw new Error(`Lỗi không xác định: ${res.status}`);
+                        return res.json();
+                    })
+                    .then(data => { alert(data.message); fetchUsers(); })
+                    .catch(err => {
+                        if (err.message === "Failed to fetch") {
+                            alert("Không kết nối được với server!");
+                        }
+                    });
+            };
+
+            return (
+                <div className="container">
+                    <h1>Quản lý Người dùng</h1>
+                    <SearchBar value={search} onChange={(val) => { setSearch(val); setPage(1); }} />
+                    <button className="btn-add" onClick={() => { setEditingUser(null); setShowModal(true); }}>
+                        + Thêm người dùng
+                    </button>
+                    <UserTable users={users} page={page} limit={limit}
+                        onEdit={(user) => { setEditingUser(user); setShowModal(true); }}
+                        onDelete={deleteUser}
+                    />
+                    <Pagination page={page} totalPages={totalPages} limit={limit}
+                        onPageChange={setPage}
+                        onLimitChange={(val) => { setLimit(val); setPage(1); }}
+                    />
+                    {showModal && (
+                        <UserModal
+                            user={editingUser}
+                            onClose={() => setShowModal(false)}
+                            onSave={() => { fetchUsers(); setShowModal(false); }}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById("root"));
+        root.render(<App />);
+    </script>
+</body>
+</html>
